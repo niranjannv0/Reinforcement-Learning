@@ -1,6 +1,6 @@
 # The Bellman Equation: A Complete Interactive Walkthrough
 
-[![CI](https://github.com/<your-username>/bellman-equation-guide/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-username>/bellman-equation-guide/actions/workflows/ci.yml)
+[![CI](https://github.com/niranjannv0/Reinforcement-Learning/actions/workflows/ci.yml/badge.svg)](https://github.com/niranjannv0/Reinforcement-Learning/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 Learn Value Iteration, Q-Iteration, and Policy Iteration by watching them happen — a single self-contained HTML page with animated, worked-through Bellman equation examples, plus a hands-on Python Q-learning demo. Built for reinforcement learning beginners.
