@@ -36,7 +36,7 @@ The HTML guide is a single file — no build step, no framework, no install. Ope
 - Full round-by-round Bellman equations for Value Iteration (V-based) and Q-Iteration (Q-based) — not just the final answer, every intermediate round
 - Interactive step-through animations for Value Iteration, Q-Iteration, and Policy Iteration, each with live counters showing how often utilities vs. policy actually get updated
 - A side-by-side comparison chart of all three algorithms
-- A standalone Python script, `python/q_learning_gridworld.py`, that recreates the classic 4×3 "learned Q-function" gridworld and runs **tabular Q-learning** on it — with an interactive, press-Enter-to-step trace that starts from an all-zero Q-table so you can watch the very first episode learn in real time
+- A standalone Python script, `python/q_learning_gridworld.py`, that recreates the classic 4×3 "learned Q-function" gridworld and runs **tabular Q-learning** on it — with an interactive matplotlib GUI (click-to-step buttons, live Q-value triangles, cell position labels) that starts from an all-zero Q-table so you can watch the very first episode learn in real time
 
 ## Live demo
 
@@ -45,13 +45,13 @@ The HTML guide is a single file — no build step, no framework, no install. Ope
 3. Save — GitHub will publish the page at:
 
    ```
-   https://github.com/niranjannv0/Reinforcement-Learning.git
+   https://niranjannv0.github.io/Reinforcement-Learning/
    ```
 
 No hosting? Just clone the repo and open `docs/index.html` directly in any browser. Everything works fully offline **except** the final comparison chart, which loads Chart.js from a CDN.
 
 ```bash
-git remote add origin https://github.com/niranjannv0/Reinforcement-Learning.git
+git clone https://github.com/niranjannv0/Reinforcement-Learning.git
 cd Reinforcement-Learning
 open docs/index.html   # or just double-click it
 ```
@@ -60,30 +60,40 @@ open docs/index.html   # or just double-click it
 
 `python/q_learning_gridworld.py` recreates the classic 4×3 gridworld (a wall, a +1 goal, a −1 pit — based on the well-known "Example of Learned Q-Function" slide popularized in Berkeley's CS188, itself derived from the AIMA textbook's gridworld) and runs real tabular **Q-learning** on it, not value/Q-iteration — meaning the agent doesn't know the reward or transition model up front and has to learn Q(s,a) purely by walking around and experiencing transitions.
 
-Requires Python 3.8+. No third-party packages — see [`requirements.txt`](./requirements.txt):
+The whole thing is rendered with **matplotlib**: each cell is split into four triangles (one per action — up/down/left/right), colored and labeled with that action's live Q-value, exactly like the original slide. Every cell also shows its `(row, col)` position in the corner, and the agent's current location is marked with an orange dot.
+
+Requires Python 3.8+ and matplotlib — see [`requirements.txt`](./requirements.txt):
 
 ```bash
+pip install -r requirements.txt
 python python/q_learning_gridworld.py
 ```
 
-What happens when you run it:
+This opens an interactive window with three buttons:
 
-1. **Interactive trace** — steps through the agent's very first episode one action at a time (press Enter to advance), starting from a completely blank, all-zero Q-table. Each step prints the exact Q-learning update with real numbers substituted in:
+- **Next Step** — takes exactly one Q-learning update from an all-zero Q-table, moving the agent one cell and printing the exact update underneath the grid, e.g.:
 
    ```
    Q((2, 0),RIGHT) <- 0.000 + 0.1 * [ -0.04 + 0.9 * 0.000 - 0.000 ]
-   Q((2, 0),RIGHT) <- 0.000 + 0.1 * (-0.040)
-   Q((2, 0),RIGHT) <- -0.004
+   Q((2, 0),RIGHT) <- 0.000 + 0.1 * (-0.040)  =  -0.004
    ```
 
-   along with an ASCII redraw of the whole grid after every update, so you can watch the Q-values spread outward from zero as the agent explores.
+   Click it repeatedly to watch Q-values spread outward from zero, cell by cell, as the agent explores — including the moment its greedy policy flips direction once it learns enough.
 
-2. **Full training run (optional)** — trains fresh for 1,000 episodes (matching the slide's "Q-VALUES AFTER 1000 EPISODES" caption) and prints the final Q-table plus the greedy policy it implies.
+- **Train 1,000 Episodes** — resets to a blank Q-table and trains fresh in one shot (matching the slide's "Q-VALUES AFTER 1000 EPISODES" caption), then displays the converged grid with the best action in each cell shown in bold.
+
+- **Reset** — clears everything back to an all-zero Q-table.
+
+No display available (e.g. over SSH, or in CI)? Run headless — it trains silently and saves a PNG snapshot instead of opening a window:
+
+```bash
+python python/q_learning_gridworld.py --headless --episodes 500
+```
 
 ## 🗂 Repo structure
 
 ```
-bellman-equation-guide/
+Reinforcement-Learning/
 ├── README.md
 ├── LICENSE
 ├── requirements.txt
@@ -94,7 +104,7 @@ bellman-equation-guide/
 ├── docs/
 │   └── index.html                # the entire interactive guide, single file (served via GitHub Pages)
 └── python/
-    └── q_learning_gridworld.py   # tabular Q-learning, 4x3 gridworld, interactive CLI trace
+    └── q_learning_gridworld.py   # tabular Q-learning, 4x3 gridworld, interactive matplotlib GUI
 ```
 
 ## 🧠 Topics covered

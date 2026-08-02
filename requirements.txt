@@ -1,17 +1,18 @@
 # requirements.txt
 # --------------------------------------------------------------------------
-# python/q_learning_gridworld.py currently uses ONLY the Python standard
-# library (the `random` module) -- there is nothing to install to run it.
+# python/q_learning_gridworld.py uses matplotlib for its interactive GUI
+# (click-to-step buttons, colored Q-value grid) and for saving PNG snapshots
+# in --headless mode.
 #
 #   Requires: Python 3.8+
-#   Install:  nothing needed. Just run:  python python/q_learning_gridworld.py
+#   Install:  pip install -r requirements.txt
+#   Run:      python python/q_learning_gridworld.py            (interactive GUI)
+#             python python/q_learning_gridworld.py --headless  (no window, saves a PNG)
+
+matplotlib>=3.5
+
+# --------------------------------------------------------------------------
+# Placeholders for future roadmap items (see README) -- uncomment as they land:
 #
-# This file is kept in place (rather than omitted) so future roadmap items
-# have an obvious place to declare their dependencies as they're added, e.g.:
-#
-#   numpy>=1.24          # Deep Q-Networks (planned)
-#   torch>=2.2            # Deep Q-Networks / function approximation (planned)
-#   matplotlib>=3.8       # training curve plots (planned)
-#
-# Once any of those land, install with:
-#   pip install -r requirements.txt
+#   numpy>=1.24            # Deep Q-Networks (planned)
+#   torch>=2.2              # Deep Q-Networks / function approximation (planned)
