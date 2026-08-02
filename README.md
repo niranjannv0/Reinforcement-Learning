@@ -45,14 +45,14 @@ The HTML guide is a single file — no build step, no framework, no install. Ope
 3. Save — GitHub will publish the page at:
 
    ```
-   https://<your-username>.github.io/bellman-equation-guide/
+   https://github.com/niranjannv0/Reinforcement-Learning.git
    ```
 
 No hosting? Just clone the repo and open `docs/index.html` directly in any browser. Everything works fully offline **except** the final comparison chart, which loads Chart.js from a CDN.
 
 ```bash
-git clone https://github.com/<your-username>/bellman-equation-guide.git
-cd bellman-equation-guide
+git remote add origin https://github.com/niranjannv0/Reinforcement-Learning.git
+cd Reinforcement-Learning
 open docs/index.html   # or just double-click it
 ```
 
@@ -152,3 +152,7 @@ MIT — see [LICENSE](./LICENSE). Replace `[Your Name]` in that file with your o
 Built as an interactive companion for learning the Bellman equation and classic MDP-solving algorithms — the kind of step-by-step, numbers-first explanation this repo tries to give for every concept it covers.
 
 The 4×3 gridworld in `python/q_learning_gridworld.py` is the classic teaching example popularized in Dan Klein and Pieter Abbeel's Berkeley CS188 course slides, itself derived from the gridworld in Russell & Norvig's *Artificial Intelligence: A Modern Approach*.
+
+This repository also draws on material presented in the **CIS 522: Deep Learning** lecture series, particularly the lecture covering Markov Decision Processes and Dynamic Programming:
+- https://youtu.be/rCk_hvwZ6iA
+
