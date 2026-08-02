@@ -1,0 +1,17 @@
+# requirements.txt
+# --------------------------------------------------------------------------
+# python/q_learning_gridworld.py currently uses ONLY the Python standard
+# library (the `random` module) -- there is nothing to install to run it.
+#
+#   Requires: Python 3.8+
+#   Install:  nothing needed. Just run:  python python/q_learning_gridworld.py
+#
+# This file is kept in place (rather than omitted) so future roadmap items
+# have an obvious place to declare their dependencies as they're added, e.g.:
+#
+#   numpy>=1.24          # Deep Q-Networks (planned)
+#   torch>=2.2            # Deep Q-Networks / function approximation (planned)
+#   matplotlib>=3.8       # training curve plots (planned)
+#
+# Once any of those land, install with:
+#   pip install -r requirements.txt

@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The Bellman Equation: A Complete Walkthrough</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.65; }
+  h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+  h2 { font-size: 18px; font-weight: 700; margin-top: 3rem; border-bottom: 2px solid #eee; padding-bottom: 6px;}
+  h3 { font-size: 15px; font-weight: 700; margin-top: 1.5rem; }
+  .subtitle { color: #666; font-size: 14px; margin-top:0; }
+  .box { background: #f7f6f3; border-radius: 12px; padding: 0.75rem; text-align: center; }
+  .row { display: flex; gap: 12px; margin: 1rem 0; }
+  .row > div { flex: 1; }
+  .value { font-size: 22px; font-weight: 600; }
+  .label { font-size: 12px; color: #666; }
+  .calc-card { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 0.65rem 0.75rem; margin-bottom: 8px; }
+  .calc-row { display:flex; justify-content:space-between; padding:5px 10px; border-radius:6px; font-size:13px; gap:10px; }
+  .calc-row.winner { background: #e6f1fb; color: #0c447c; }
+  button { padding: 8px 16px; border-radius: 8px; border: 1px solid #ccc; background: #fff; cursor: pointer; font-size: 14px; }
+  button:hover { background: #f2f2f2; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .msg { color: #444; font-size: 14px; min-height: 40px; background:#fbf7ea; border-radius:8px; padding:8px 12px; }
+  .updated { transition: background 0.6s ease; background: #e6f1fb !important; }
+  .win-cell { background:#e6f1fb !important; color:#0c447c; font-weight:700; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; margin-right:6px; }
+  .badge.eval { background:#E1F5EE; color:#0F6E56; }
+  .badge.improve { background:#FBE7DD; color:#993C1D; }
+  .counters { display:flex; gap:16px; margin: 10px 0; font-size:13px; }
+  .counters b { font-size:16px; }
+  svg text { font-family: inherit; }
+  dl { background:#fff; border:1px solid #eee; border-radius:12px; padding: 4px 20px; }
+  dt { font-weight:700; margin-top:14px; color:#0c447c; }
+  dd { margin-left:0; color:#333; font-size:14px; margin-bottom:6px;}
+  .eqn-block { background:#fbf9f4; border-left:3px solid #b8a15c; border-radius:6px; padding:12px 16px; margin:10px 0; font-size:14.5px; }
+  .eqn-block .head { font-weight:700; margin-bottom:6px; }
+  .note { font-size:13px; color:#666; background:#f4f4f2; border-radius:8px; padding:8px 12px; }
+  .toc { background:#fff; border:1px solid #eee; border-radius:12px; padding:12px 20px; font-size:14px; }
+  .toc a { color:#0c447c; text-decoration:none; }
+  .toc a:hover { text-decoration:underline; }
+  table.qtable { width:100%; border-collapse:separate; border-spacing:8px; text-align:center; margin:1rem 0; }
+  table.qtable th { font-size:12px; color:#666; font-weight:600; }
+  table.qtable td.rowhead { font-weight:700; text-align:right; padding-right:6px; }
+  table.cmp { width:100%; border-collapse:collapse; font-size:13.5px; margin:1rem 0; }
+  table.cmp th, table.cmp td { border:1px solid #e2e2de; padding:8px 10px; text-align:left; }
+  table.cmp th { background:#f7f6f3; }
+</style>
+</head>
+<body>
+
+<h1>The Bellman Equation: A Complete Walkthrough</h1>
+<p class="subtitle">A worked example, start to finish — states, values, action-values, and three ways to solve for them.</p>
+
+<div class="toc">
+  <b>On this page:</b><br>
+  1. <a href="#glossary">Glossary for beginners</a><br>
+  2. <a href="#mdp">The example MDP</a><br>
+  3. <a href="#trace">Watch an agent move through states</a><br>
+  4. <a href="#vi">Value iteration — equations, then animation</a><br>
+  5. <a href="#qi">Q-values &amp; Q-iteration — a different way to iterate</a><br>
+  6. <a href="#pi">Policy iteration — equations, then animation</a><br>
+  7. <a href="#compare">Comparing the methods</a>
+</div>
+
+<h2 id="glossary">1. Glossary — the pieces of the puzzle</h2>
+<p>Every idea below gets used concretely in the example that follows, so don't worry about memorizing definitions in the abstract.</p>
+<dl>
+  <dt>State (s)</dt>
+  <dd>A snapshot of "where" the agent currently is. It could be a board position, a robot's location, anything. In our example there are just three states: S1, S2, and S3.</dd>
+
+  <dt>Action (a)</dt>
+  <dd>A choice available to the agent while it's in a given state. In our example, every non-terminal state offers exactly two choices, labeled A and B.</dd>
+
+  <dt>Reward (r)</dt>
+  <dd>A fixed number handed out immediately when an action is taken. Some actions pay more than others on purpose — that's what forces the agent to actually think, rather than just grabbing whatever looks biggest right now.</dd>
+
+  <dt>Transition</dt>
+  <dd>The move from one state to another that results from taking an action. In this example every transition is deterministic — action A from S1 always leads to S2, no randomness involved. (A stochastic MDP would instead give a probability distribution over several possible next states.)</dd>
+
+  <dt>Discount factor (&gamma;)</dt>
+  <dd>A number between 0 and 1 that shrinks the value of rewards the further away they are in time. We use &gamma; = 0.5, so a reward one step in the future only counts at half its face value, a reward two steps away counts at a quarter, and so on.</dd>
+
+  <dt>Value, V(s)</dt>
+  <dd>The total discounted reward the agent can expect to collect starting from state s, assuming it acts optimally from that point onward.</dd>
+
+  <dt>Action-value, Q(s,a)</dt>
+  <dd>Like V(s), but more specific: the total discounted reward from taking one particular action a in state s, then acting optimally afterward. Covered in full in Section 5 — it's what the trace in Section 3 uses to explain "why" an action was picked.</dd>
+
+  <dt>Policy, &pi;(s)</dt>
+  <dd>A rule that says "whenever you're in state s, take this specific action." A policy doesn't have to be optimal — in the policy iteration example below, we deliberately start with an arbitrary, bad policy and improve it step by step.</dd>
+
+  <dt>Terminal state</dt>
+  <dd>A state where the process simply stops — no more actions, no more rewards. S3 is our terminal state, which is exactly why V(S3) = 0 always: there's nothing left to collect from there.</dd>
+</dl>
+
+<h2 id="mdp">2. The example MDP</h2>
+<p>Two non-terminal states, two actions each, one terminal state. &gamma; = 0.5 throughout.</p>
+<svg width="100%" viewBox="0 0 680 320" id="main-svg">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#333" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<line x1="240" y1="58" x2="440" y2="58" stroke="#0F6E56" stroke-width="1" marker-end="url(#arrow)"/>
+<text x="290" y="48" font-size="12" fill="#333">A, r = 2</text>
+<line x1="440" y1="90" x2="240" y2="90" stroke="#0F6E56" stroke-width="1" marker-end="url(#arrow)"/>
+<text x="290" y="106" font-size="12" fill="#333">A, r = 1</text>
+<line x1="185" y1="96" x2="300" y2="216" stroke="#993C1D" stroke-width="1" marker-end="url(#arrow)"/>
+<text x="140" y="165" font-size="12" fill="#333">B, r = 10</text>
+<line x1="495" y1="96" x2="390" y2="216" stroke="#993C1D" stroke-width="1" marker-end="url(#arrow)"/>
+<text x="460" y="165" font-size="12" fill="#333">B, r = 4</text>
+<rect x="90" y="40" width="150" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+<text x="165" y="73" text-anchor="middle" font-size="14" font-weight="600" fill="#04342C">S1</text>
+<rect x="440" y="40" width="150" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+<text x="515" y="73" text-anchor="middle" font-size="14" font-weight="600" fill="#04342C">S2</text>
+<rect x="265" y="220" width="150" height="56" rx="8" fill="#F1EFE8" stroke="#888780" stroke-width="0.5"/>
+<text x="340" y="243" text-anchor="middle" font-size="14" font-weight="600" fill="#2C2C2A">S3</text>
+<text x="340" y="261" text-anchor="middle" font-size="12" fill="#5F5E5A">terminal, V = 0</text>
+<g id="agent-group" transform="translate(165,68)" style="transition: transform 1s ease-in-out; opacity:0;">
+  <circle r="10" fill="#eb6834" stroke="#fff" stroke-width="2"/>
+</g>
+</svg>
+
+<h2 id="trace">3. Watch an agent move through states</h2>
+<p>This is what "transition" looks like in motion: the agent sits in a state, compares its options, takes the <b>optimal</b> action, collects the reward, and lands in the next state. Try it from both starting points and read the explanation that appears for each step.</p>
+<div style="display:flex; gap:10px; flex-wrap:wrap;">
+  <button id="trace-s1">▶ Trace optimal path from S1</button>
+  <button id="trace-s2">▶ Trace optimal path from S2</button>
+  <button id="trace-reset">Reset</button>
+</div>
+<p class="msg" id="trace-info">Click a button above to start.</p>
+<p class="note">Each step is decided by comparing "Q-values" — a number for each available action. Whichever action has the bigger Q-value is the one taken. See Section 5 for exactly how those numbers are computed.</p>
+
+<h2 id="vi">4. Value Iteration</h2>
+<p>Initialize every value to 0 (we don't know anything yet), then repeatedly apply the Bellman <b>optimality</b> equation to every state at once: <code>V(s) = max<sub>a</sub>[ r(s,a) + &gamma;&middot;V(next state) ]</code>. Because of the max, the best action — the policy — gets decided automatically as a side effect of computing the value. That's why utilities and policy update together, every round.</p>
+
+<h3>The exact equations, round by round</h3>
+<div class="eqn-block">
+  <div class="head">Iteration 1 — compute V<sub>1</sub> using V<sub>0</sub> (all zero)</div>
+  V<sub>1</sub>(S1) = max[ 2 + 0.5&middot;V<sub>0</sub>(S2), 10 + 0.5&middot;V<sub>0</sub>(S3) ] = max[2+0.5(0), 10+0.5(0)] = max[2, 10] = <b>10</b><br>
+  V<sub>1</sub>(S2) = max[ 1 + 0.5&middot;V<sub>0</sub>(S1), 4 + 0.5&middot;V<sub>0</sub>(S3) ] = max[1+0.5(0), 4+0.5(0)] = max[1, 4] = <b>4</b>
+</div>
+<div class="eqn-block">
+  <div class="head">Iteration 2 — compute V<sub>2</sub> using V<sub>1</sub></div>
+  V<sub>2</sub>(S1) = max[ 2 + 0.5&middot;V<sub>1</sub>(S2), 10 + 0.5&middot;V<sub>1</sub>(S3) ] = max[2+0.5(4), 10+0.5(0)] = max[4, 10] = <b>10</b><br>
+  V<sub>2</sub>(S2) = max[ 1 + 0.5&middot;V<sub>1</sub>(S1), 4 + 0.5&middot;V<sub>1</sub>(S3) ] = max[1+0.5(10), 4+0.5(0)] = max[6, 4] = <b>6</b> &larr; changed!
+</div>
+<div class="eqn-block">
+  <div class="head">Iteration 3 — compute V<sub>3</sub> using V<sub>2</sub></div>
+  V<sub>3</sub>(S1) = max[ 2 + 0.5&middot;V<sub>2</sub>(S2), 10 + 0.5&middot;V<sub>2</sub>(S3) ] = max[2+0.5(6), 10+0.5(0)] = max[5, 10] = <b>10</b><br>
+  V<sub>3</sub>(S2) = max[ 1 + 0.5&middot;V<sub>2</sub>(S1), 4 + 0.5&middot;V<sub>2</sub>(S3) ] = max[1+0.5(10), 4+0.5(0)] = max[6, 4] = <b>6</b>
+</div>
+<div class="eqn-block">
+  <div class="head">Iteration 4 — compute V<sub>4</sub> using V<sub>3</sub> (confirming convergence)</div>
+  V<sub>4</sub>(S1) = max[2+0.5(6), 10+0.5(0)] = max[5, 10] = <b>10</b> (same as V<sub>3</sub>)<br>
+  V<sub>4</sub>(S2) = max[1+0.5(10), 4+0.5(0)] = max[6, 4] = <b>6</b> (same as V<sub>3</sub>)<br>
+  V<sub>4</sub> = V<sub>3</sub> for every state &rarr; <b>converged</b>. V*(S1) = 10, V*(S2) = 6.
+</div>
+<p class="note">Pattern to notice: V<sub>1</sub> only ever looks at V<sub>0</sub>, V<sub>2</sub> only ever looks at V<sub>1</sub>, and so on — each round strictly builds on the round right before it.</p>
+
+<h3>Now watch it happen, step by step</h3>
+<div class="row">
+  <div class="box"><div class="label">V(S1)</div><div class="value" id="vi-v-S1">0</div></div>
+  <div class="box"><div class="label">V(S2)</div><div class="value" id="vi-v-S2">0</div></div>
+  <div class="box"><div class="label">Implied policy</div><div class="value" id="vi-policy" style="font-size:16px;">—</div></div>
+</div>
+<div id="vi-panel"></div>
+<div class="counters">
+  <span>Utility sweeps: <b id="vi-util-count">0</b></span>
+  <span>Policy re-derivations: <b id="vi-policy-count">0</b></span>
+</div>
+<p class="msg" id="vi-msg"></p>
+<div style="display:flex; align-items:center; gap:10px;">
+  <button id="vi-prev">Previous</button>
+  <button id="vi-next">Next</button>
+  <span id="vi-dots" style="display:flex; gap:5px; margin-left:8px;"></span>
+</div>
+
+<h2 id="qi">5. Q-values &amp; Q-iteration</h2>
+<p>V(s) tells you how good a <i>state</i> is. Q(s,a) tells you how good a specific <i>action</i> is, taken from a specific state: <code>Q(s,a) = r(s,a) + &gamma;&middot;V(next state)</code>. In fact, V and Q are directly related — V is just the best Q available at that state:</p>
+<div class="eqn-block">V(s) = max<sub>a</sub> Q(s,a) &nbsp;&nbsp;&nbsp; and &nbsp;&nbsp;&nbsp; &pi;*(s) = argmax<sub>a</sub> Q(s,a)</div>
+<p><b>Why bother with a second function?</b> With only V(s), picking the best action at decision time means simulating every action one step ahead — you need to know each action's reward <i>and</i> where it leads. With Q(s,a) already computed, picking the best action is just "read off the biggest number in this row" — no model of rewards or transitions needed at decision time. That's the whole idea behind Q-learning.</p>
+
+<h3>Q-iteration: the same trick, applied to Q instead of V</h3>
+<div class="eqn-block">Q(s,a) = r(s,a) + &gamma;&middot;max<sub>a'</sub> Q(next state, a')</div>
+<p style="font-size:14px;">Notice there's <b>no max on the left-hand side</b> — every (state, action) pair gets its own equation and updates independently. The max only appears on the right, over the <i>next</i> state's actions. That means we now track <b>4 numbers</b> instead of 2: Q(S1,A), Q(S1,B), Q(S2,A), Q(S2,B).</p>
+
+<div class="eqn-block">
+  <div class="head">Round 1 — using Q<sub>0</sub> = 0 everywhere</div>
+  Q<sub>1</sub>(S1,A) = 2 + 0.5&middot;max[Q<sub>0</sub>(S2,A), Q<sub>0</sub>(S2,B)] = 2+0.5&middot;max[0,0] = <b>2</b><br>
+  Q<sub>1</sub>(S1,B) = 10 + 0.5&middot;(terminal, no actions) = <b>10</b><br>
+  Q<sub>1</sub>(S2,A) = 1 + 0.5&middot;max[Q<sub>0</sub>(S1,A), Q<sub>0</sub>(S1,B)] = 1+0.5&middot;max[0,0] = <b>1</b><br>
+  Q<sub>1</sub>(S2,B) = 4 + 0.5&middot;(terminal, no actions) = <b>4</b>
+</div>
+<div class="eqn-block">
+  <div class="head">Round 2 — using Q<sub>1</sub></div>
+  Q<sub>2</sub>(S1,A) = 2 + 0.5&middot;max[1, 4] = 2+2 = <b>4</b><br>
+  Q<sub>2</sub>(S1,B) = 10 (unchanged, terminal)<br>
+  Q<sub>2</sub>(S2,A) = 1 + 0.5&middot;max[2, 10] = 1+5 = <b>6</b> &larr; changed!<br>
+  Q<sub>2</sub>(S2,B) = 4 (unchanged, terminal)
+</div>
+<div class="eqn-block">
+  <div class="head">Round 3 — using Q<sub>2</sub></div>
+  Q<sub>3</sub>(S1,A) = 2 + 0.5&middot;max[6, 4] = 2+3 = <b>5</b> &larr; changed!<br>
+  Q<sub>3</sub>(S1,B) = 10 (unchanged)<br>
+  Q<sub>3</sub>(S2,A) = 1 + 0.5&middot;max[4, 10] = 1+5 = <b>6</b> (unchanged)<br>
+  Q<sub>3</sub>(S2,B) = 4 (unchanged)
+</div>
+<div class="eqn-block">
+  <div class="head">Round 4 — using Q<sub>3</sub> (confirming convergence)</div>
+  All four values repeat exactly: Q*(S1,A)=5, Q*(S1,B)=10, Q*(S2,A)=6, Q*(S2,B)=4 &rarr; <b>converged</b>.<br>
+  Reading off the best action per row: &pi;*(S1)=B (10 &gt; 5), &pi;*(S2)=A (6 &gt; 4) — exactly what value iteration found.
+</div>
+
+<h3>Now watch the Q-table fill in</h3>
+<table class="qtable">
+  <tr><th></th><th>Action A</th><th>Action B</th></tr>
+  <tr><td class="rowhead">S1</td><td class="box value" id="q-S1A">0</td><td class="box value" id="q-S1B">0</td></tr>
+  <tr><td class="rowhead">S2</td><td class="box value" id="q-S2A">0</td><td class="box value" id="q-S2B">0</td></tr>
+</table>
+<p class="msg" id="q-derived" style="font-weight:500;"></p>
+<div id="q-panel"></div>
+<div class="counters"><span>Q-table sweeps: <b id="q-count">0</b></span></div>
+<p class="msg" id="q-msg"></p>
+<div style="display:flex; align-items:center; gap:10px;">
+  <button id="q-prev">Previous</button>
+  <button id="q-next">Next</button>
+  <span id="q-dots" style="display:flex; gap:5px; margin-left:8px;"></span>
+</div>
+
+<h3>Value iteration vs. Q-iteration</h3>
+<table class="cmp">
+<tr><th></th><th>Value Iteration (V)</th><th>Q-Iteration (Q)</th></tr>
+<tr><td>Numbers tracked</td><td>2 — one per state</td><td>4 — one per (state, action) pair</td></tr>
+<tr><td>Update equation</td><td>V(s) = max<sub>a</sub>[r + &gamma;V(s')]</td><td>Q(s,a) = r + &gamma;max<sub>a'</sub>Q(s',a')</td></tr>
+<tr><td>Rounds to converge here</td><td>3</td><td>4</td></tr>
+<tr><td>To act optimally at decision time</td><td>Need r(s,a) and V(s') for every action — requires the model</td><td>Just read the biggest Q(s,a) — no model needed</td></tr>
+</table>
+<p class="note">Q-iteration takes one extra round here because it's tracking finer-grained information — it never throws away the "losing" action's value the way V does. That's a real trade-off: more memory, one more sweep, but a strictly more useful table to act from.</p>
+
+<h2 id="pi">6. Policy Iteration</h2>
+<p>A completely different strategy: pick <i>any</i> starting policy, evaluate how good it is (no max — just follow the policy's fixed choices, repeated until the values settle), then do one greedy pass to improve the policy. Repeat. Evaluation typically takes several passes; improvement only needs to happen occasionally.</p>
+<div class="row">
+  <div class="box"><div class="label">V(S1)</div><div class="value" id="pi-v-S1">0</div></div>
+  <div class="box"><div class="label">V(S2)</div><div class="value" id="pi-v-S2">0</div></div>
+  <div class="box"><div class="label">Current policy</div><div class="value" id="pi-policy" style="font-size:16px;">π(S1)=A, π(S2)=B</div></div>
+</div>
+<div id="pi-panel"></div>
+<div class="counters">
+  <span class="badge eval">Evaluation sub-iterations: <b id="pi-eval-count">0</b></span>
+  <span class="badge improve">Policy improvements: <b id="pi-improve-count">0</b></span>
+</div>
+<p class="msg" id="pi-msg"></p>
+<div style="display:flex; align-items:center; gap:10px;">
+  <button id="pi-prev">Previous</button>
+  <button id="pi-next">Next</button>
+  <span id="pi-dots" style="display:flex; gap:5px; margin-left:8px; flex-wrap:wrap; max-width:220px;"></span>
+</div>
+
+<h2 id="compare">7. Comparing the methods</h2>
+<div style="position:relative; height:260px;"><canvas id="compareChart"></canvas></div>
+<p style="font-size:13px; color:#666;">Value iteration updates utilities and policy in lockstep, 1:1, every round. Policy iteration leans heavily on evaluation (7 sub-iterations) and touches the policy only occasionally (3 times). Q-iteration behaves like value iteration's cousin — same "implicit policy, every round" family — just working with 4 numbers instead of 2. All three converge to the exact same answer: V(S1)=10, V(S2)=6, π(S1)=B, π(S2)=A.</p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+/* ---------- STATE TRANSITION TRACE ---------- */
+const traceSequences = {
+  S1: [ {from:'S1', to:'S3', action:'B', reward:10, fromPos:[165,68], toPos:[340,248], qA:5, qB:10} ],
+  S2: [ {from:'S2', to:'S1', action:'A', reward:1, fromPos:[515,68], toPos:[165,68], qA:6, qB:4},
+        {from:'S1', to:'S3', action:'B', reward:10, fromPos:[165,68], toPos:[340,248], qA:5, qB:10} ]
+};
+function popReward(x, y, reward) {
+  const svg = document.getElementById('main-svg');
+  const ns = 'http://www.w3.org/2000/svg';
+  const t = document.createElementNS(ns, 'text');
+  t.setAttribute('x', x); t.setAttribute('y', y - 25);
+  t.setAttribute('text-anchor', 'middle');
+  t.setAttribute('font-size', '14'); t.setAttribute('font-weight', '700');
+  t.setAttribute('fill', '#eb6834');
+  t.textContent = '+' + reward;
+  t.style.transition = 'transform 1.2s ease-out, opacity 1.2s ease-out';
+  t.style.opacity = '1';
+  svg.appendChild(t);
+  requestAnimationFrame(() => { t.style.transform = 'translateY(-20px)'; t.style.opacity = '0'; });
+  setTimeout(() => t.remove(), 1300);
+}
+function runTrace(startState) {
+  const seq = traceSequences[startState];
+  const group = document.getElementById('agent-group');
+  const info = document.getElementById('trace-info');
+  let undiscounted = 0, discounted = 0, gammaPow = 1;
+  group.style.transition = 'none';
+  group.setAttribute('transform', 'translate(' + seq[0].fromPos[0] + ',' + seq[0].fromPos[1] + ')');
+  group.style.opacity = '1';
+  void group.offsetWidth;
+  group.style.transition = 'transform 1s ease-in-out';
+  info.textContent = 'Starting at ' + startState + '...';
+  let delay = 700;
+  seq.forEach((step, idx) => {
+    setTimeout(() => {
+      group.setAttribute('transform', 'translate(' + step.toPos[0] + ',' + step.toPos[1] + ')');
+      popReward(step.toPos[0], step.toPos[1], step.reward);
+      undiscounted += step.reward;
+      discounted += gammaPow * step.reward;
+      gammaPow *= 0.5;
+      const winnerVal = step.action === 'A' ? step.qA : step.qB;
+      const loserVal = step.action === 'A' ? step.qB : step.qA;
+      info.innerHTML = 'At ' + step.from + ': Q(' + step.from + ',A)=' + step.qA + ' vs Q(' + step.from + ',B)=' + step.qB +
+        ' &rarr; <b>' + winnerVal + ' &gt; ' + loserVal + '</b>, so action ' + step.action + ' wins. The agent moves to ' + step.to + ', collecting reward +' + step.reward + '.' +
+        '<br>Running total &mdash; undiscounted: ' + undiscounted + ', discounted: ' + discounted.toFixed(2);
+      if (idx === seq.length - 1) {
+        setTimeout(() => {
+          info.innerHTML += '<br><b>Reached terminal state ' + step.to + '. Total discounted reward = ' + discounted.toFixed(2) + ' — matches V*(' + startState + ') = ' + discounted.toFixed(0) + '!</b>';
+        }, 900);
+      }
+    }, delay);
+    delay += 1700;
+  });
+}
+document.getElementById('trace-s1').onclick = () => runTrace('S1');
+document.getElementById('trace-s2').onclick = () => runTrace('S2');
+document.getElementById('trace-reset').onclick = () => {
+  document.getElementById('agent-group').style.opacity = '0';
+  document.getElementById('trace-info').textContent = 'Click a button above to start.';
+};
+
+/* ---------- VALUE ITERATION STEPPER ---------- */
+const viSteps = [
+ { boxes:{S1:0,S2:0}, phase:'init', policy:null, message:"Start: nothing is known yet, so every value is initialized to 0." },
+ { boxes:{S1:0,S2:0}, phase:'calc', policy:null, calc:{S1:{A:{r:2,vnext:0,total:2},B:{r:10,vnext:0,total:10},winner:'B',next:{A:'S2',B:'S3'}},S2:{A:{r:1,vnext:0,total:1},B:{r:4,vnext:0,total:4},winner:'B',next:{A:'S1',B:'S3'}}}, message:"Round 1: compute max[r + 0.5V] for every action, at every state, at once." },
+ { boxes:{S1:10,S2:4}, phase:'commit', policy:{S1:'B',S2:'B'}, message:"Committed: V(S1)=10, V(S2)=4. Policy is derived for free from the same max — π(S1)=B, π(S2)=B." },
+ { boxes:{S1:10,S2:4}, phase:'calc', policy:{S1:'B',S2:'B'}, calc:{S1:{A:{r:2,vnext:4,total:4},B:{r:10,vnext:0,total:10},winner:'B',next:{A:'S2',B:'S3'}},S2:{A:{r:1,vnext:10,total:6},B:{r:4,vnext:0,total:4},winner:'A',next:{A:'S1',B:'S3'}}}, message:"Round 2: same formula, using round 1's values." },
+ { boxes:{S1:10,S2:6}, phase:'commit', policy:{S1:'B',S2:'A'}, message:"Committed: V(S2) jumps to 6, and its policy flips to A — again, both updated in the same step." },
+ { boxes:{S1:10,S2:6}, phase:'calc', policy:{S1:'B',S2:'A'}, calc:{S1:{A:{r:2,vnext:6,total:5},B:{r:10,vnext:0,total:10},winner:'B',next:{A:'S2',B:'S3'}},S2:{A:{r:1,vnext:10,total:6},B:{r:4,vnext:0,total:4},winner:'A',next:{A:'S1',B:'S3'}}}, message:"Round 3: check again with the latest values." },
+ { boxes:{S1:10,S2:6}, phase:'commit', policy:{S1:'B',S2:'A'}, message:"No change — converged. V*(S1)=10, V*(S2)=6, π*(S1)=B, π*(S2)=A." }
+];
+let vi = 0;
+function viCalcCard(state, data) {
+  const rows = ['A','B'].map(a => {
+    const d = data[a]; const win = data.winner === a;
+    return '<div class="calc-row'+(win?' winner':'')+'"><span>Action '+a+' &rarr; '+data.next[a]+'</span><span>'+d.r+' + 0.5&times;'+d.vnext+' = <b>'+d.total+'</b></span></div>';
+  }).join('');
+  const best = Math.max(data.A.total, data.B.total);
+  return '<div class="calc-card"><div style="font-weight:600;margin-bottom:6px;">Updating '+state+'</div>'+rows+'<div style="font-size:13px;margin-top:6px;padding:0 10px;">V('+state+') = max('+data.A.total+', '+data.B.total+') = <b>'+best+'</b></div></div>';
+}
+function viRender() {
+  const s = viSteps[vi];
+  document.getElementById('vi-v-S1').textContent = s.boxes.S1;
+  document.getElementById('vi-v-S2').textContent = s.boxes.S2;
+  document.getElementById('vi-msg').textContent = s.message;
+  document.getElementById('vi-policy').textContent = s.policy ? ('π(S1)='+s.policy.S1+', π(S2)='+s.policy.S2) : '—';
+  const panel = document.getElementById('vi-panel');
+  panel.innerHTML = s.phase === 'calc' ? viCalcCard('S1', s.calc.S1) + viCalcCard('S2', s.calc.S2) : '';
+  const utilCount = viSteps.slice(0, vi+1).filter(x => x.phase==='commit').length;
+  document.getElementById('vi-util-count').textContent = utilCount;
+  document.getElementById('vi-policy-count').textContent = utilCount;
+  if (s.phase === 'commit' && vi > 0) {
+    const b1 = document.getElementById('vi-v-S1').parentElement, b2 = document.getElementById('vi-v-S2').parentElement;
+    b1.classList.remove('updated'); b2.classList.remove('updated');
+    void b1.offsetWidth;
+    b1.classList.add('updated'); b2.classList.add('updated');
+  }
+  document.getElementById('vi-prev').disabled = vi === 0;
+  document.getElementById('vi-next').disabled = vi === viSteps.length - 1;
+  document.getElementById('vi-dots').innerHTML = viSteps.map((_, idx) => '<span style="width:6px;height:6px;border-radius:50%;display:inline-block;background:'+(idx===vi?'#1a1a1a':'#ccc')+'"></span>').join('');
+}
+document.getElementById('vi-next').onclick = () => { if (vi < viSteps.length-1) { vi++; viRender(); } };
+document.getElementById('vi-prev').onclick = () => { if (vi > 0) { vi--; viRender(); } };
+viRender();
+
+/* ---------- Q-ITERATION STEPPER ---------- */
+const qSteps = [
+ { phase:'init', Q:{S1A:0,S1B:0,S2A:0,S2B:0}, message:"Start: every Q(s,a) pair initialized to 0." },
+ { phase:'calc', Q:{S1A:0,S1B:0,S2A:0,S2B:0}, calc:{
+     S1:{A:{r:2,next:'S2',nextA:0,nextB:0,total:2}, B:{r:10,next:'S3',total:10}},
+     S2:{A:{r:1,next:'S1',nextA:0,nextB:0,total:1}, B:{r:4,next:'S3',total:4}}
+   }, message:"Round 1: update every (state, action) pair independently, using the max over the NEXT state's actions." },
+ { phase:'commit', Q:{S1A:2,S1B:10,S2A:1,S2B:4}, message:"Committed: Q(S1,A)=2, Q(S1,B)=10, Q(S2,A)=1, Q(S2,B)=4." },
+ { phase:'calc', Q:{S1A:2,S1B:10,S2A:1,S2B:4}, calc:{
+     S1:{A:{r:2,next:'S2',nextA:1,nextB:4,total:4}, B:{r:10,next:'S3',total:10}},
+     S2:{A:{r:1,next:'S1',nextA:2,nextB:10,total:6}, B:{r:4,next:'S3',total:4}}
+   }, message:"Round 2: plug in round 1's Q-values." },
+ { phase:'commit', Q:{S1A:4,S1B:10,S2A:6,S2B:4}, message:"Committed: Q(S2,A) jumps to 6, now the best action available at S2." },
+ { phase:'calc', Q:{S1A:4,S1B:10,S2A:6,S2B:4}, calc:{
+     S1:{A:{r:2,next:'S2',nextA:6,nextB:4,total:5}, B:{r:10,next:'S3',total:10}},
+     S2:{A:{r:1,next:'S1',nextA:4,nextB:10,total:6}, B:{r:4,next:'S3',total:4}}
+   }, message:"Round 3: Q(S1,A) climbs to 5, but still trails Q(S1,B)=10." },
+ { phase:'commit', Q:{S1A:5,S1B:10,S2A:6,S2B:4}, message:"Committed: Q(S1,A)=5 now." },
+ { phase:'calc', Q:{S1A:5,S1B:10,S2A:6,S2B:4}, calc:{
+     S1:{A:{r:2,next:'S2',nextA:6,nextB:4,total:5}, B:{r:10,next:'S3',total:10}},
+     S2:{A:{r:1,next:'S1',nextA:5,nextB:10,total:6}, B:{r:4,next:'S3',total:4}}
+   }, message:"Round 4: checking again with the latest values." },
+ { phase:'commit', Q:{S1A:5,S1B:10,S2A:6,S2B:4}, message:"No change — converged. Q*(S1,A)=5, Q*(S1,B)=10, Q*(S2,A)=6, Q*(S2,B)=4." }
+];
+let qi = 0;
+function qCalcCard(state, data) {
+  const rows = ['A','B'].map(a => {
+    const d = data[a];
+    const formula = d.next === 'S3'
+      ? d.r + ' + 0.5&times;(terminal, no actions)'
+      : d.r + ' + 0.5&times;max[' + d.nextA + ', ' + d.nextB + ']';
+    return '<div class="calc-row"><span>Q('+state+','+a+') &rarr; '+d.next+'</span><span>'+formula+' = <b>'+d.total+'</b></span></div>';
+  }).join('');
+  return '<div class="calc-card"><div style="font-weight:600;margin-bottom:6px;">Updating Q('+state+', &middot;)</div>'+rows+'</div>';
+}
+function qRender() {
+  const s = qSteps[qi];
+  document.getElementById('q-S1A').textContent = s.Q.S1A;
+  document.getElementById('q-S1B').textContent = s.Q.S1B;
+  document.getElementById('q-S2A').textContent = s.Q.S2A;
+  document.getElementById('q-S2B').textContent = s.Q.S2B;
+  const tieS1 = s.Q.S1A === s.Q.S1B, tieS2 = s.Q.S2A === s.Q.S2B;
+  document.getElementById('q-S1A').classList.toggle('win-cell', !tieS1 && s.Q.S1A > s.Q.S1B);
+  document.getElementById('q-S1B').classList.toggle('win-cell', !tieS1 && s.Q.S1B > s.Q.S1A);
+  document.getElementById('q-S2A').classList.toggle('win-cell', !tieS2 && s.Q.S2A > s.Q.S2B);
+  document.getElementById('q-S2B').classList.toggle('win-cell', !tieS2 && s.Q.S2B > s.Q.S2A);
+  const vS1 = Math.max(s.Q.S1A, s.Q.S1B), vS2 = Math.max(s.Q.S2A, s.Q.S2B);
+  const piS1 = tieS1 ? '—' : (s.Q.S1B > s.Q.S1A ? 'B' : 'A');
+  const piS2 = tieS2 ? '—' : (s.Q.S2A > s.Q.S2B ? 'A' : 'B');
+  document.getElementById('q-derived').innerHTML = 'Derived right now: V(S1)=max('+s.Q.S1A+','+s.Q.S1B+')='+vS1+' &rarr; π(S1)='+piS1+' &nbsp;|&nbsp; V(S2)=max('+s.Q.S2A+','+s.Q.S2B+')='+vS2+' &rarr; π(S2)='+piS2;
+  document.getElementById('q-msg').textContent = s.message;
+  document.getElementById('q-panel').innerHTML = s.phase === 'calc' ? qCalcCard('S1', s.calc.S1) + qCalcCard('S2', s.calc.S2) : '';
+  document.getElementById('q-count').textContent = qSteps.slice(0, qi+1).filter(x => x.phase==='commit').length;
+  if (s.phase === 'commit' && qi > 0) {
+    ['q-S1A','q-S1B','q-S2A','q-S2B'].forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove('updated'); void el.offsetWidth; el.classList.add('updated');
+    });
+  }
+  document.getElementById('q-prev').disabled = qi === 0;
+  document.getElementById('q-next').disabled = qi === qSteps.length - 1;
+  document.getElementById('q-dots').innerHTML = qSteps.map((_, idx) => '<span style="width:6px;height:6px;border-radius:50%;display:inline-block;background:'+(idx===qi?'#1a1a1a':'#ccc')+'"></span>').join('');
+}
+document.getElementById('q-next').onclick = () => { if (qi < qSteps.length-1) { qi++; qRender(); } };
+document.getElementById('q-prev').onclick = () => { if (qi > 0) { qi--; qRender(); } };
+qRender();
+
+/* ---------- POLICY ITERATION STEPPER ---------- */
+const piSteps = [
+ { phase:'init', policy:{S1:'A',S2:'B'}, V:{S1:0,S2:0}, evalCount:0, improveCount:0,
+   message:"Start with an arbitrary policy: π(S1)=A, π(S2)=B. Now we evaluate it." },
+ { phase:'eval', policy:{S1:'A',S2:'B'}, V:{S1:2,S2:4}, evalCount:1, improveCount:0,
+   detail:{S1:{action:'A', r:2, vnext:0, next:'S2', total:2}, S2:{action:'B', r:4, vnext:0, next:'S3', total:4}},
+   message:"Evaluation sub-iteration 1: plug in the policy's fixed action for each state (no max)." },
+ { phase:'eval', policy:{S1:'A',S2:'B'}, V:{S1:4,S2:4}, evalCount:2, improveCount:0,
+   detail:{S1:{action:'A', r:2, vnext:4, next:'S2', total:4}, S2:{action:'B', r:4, vnext:0, next:'S3', total:4}},
+   message:"Sub-iteration 2: values keep updating under the same fixed policy." },
+ { phase:'eval', policy:{S1:'A',S2:'B'}, V:{S1:4,S2:4}, evalCount:3, improveCount:0,
+   detail:{S1:{action:'A', r:2, vnext:4, next:'S2', total:4}, S2:{action:'B', r:4, vnext:0, next:'S3', total:4}},
+   message:"Sub-iteration 3: no change. Evaluation converged — V_π(S1)=4, V_π(S2)=4." },
+ { phase:'improve', policy:{S1:'B',S2:'B'}, V:{S1:4,S2:4}, evalCount:3, improveCount:1,
+   detail:{S1:{A:4,B:10,winner:'B',changed:true}, S2:{A:3,B:4,winner:'B',changed:false}},
+   message:"Policy improvement: check ALL actions against the converged values. S1 switches from A to B!" },
+ { phase:'eval', policy:{S1:'B',S2:'B'}, V:{S1:10,S2:4}, evalCount:4, improveCount:1,
+   detail:{S1:{action:'B', r:10, vnext:0, next:'S3', total:10}, S2:{action:'B', r:4, vnext:0, next:'S3', total:4}},
+   message:"Round 2: evaluate the new policy, starting from what we already know." },
+ { phase:'eval', policy:{S1:'B',S2:'B'}, V:{S1:10,S2:4}, evalCount:5, improveCount:1,
+   detail:{S1:{action:'B', r:10, vnext:0, next:'S3', total:10}, S2:{action:'B', r:4, vnext:0, next:'S3', total:4}},
+   message:"No change — converged. V_π(S1)=10, V_π(S2)=4." },
+ { phase:'improve', policy:{S1:'B',S2:'A'}, V:{S1:10,S2:4}, evalCount:5, improveCount:2,
+   detail:{S1:{A:4,B:10,winner:'B',changed:false}, S2:{A:6,B:4,winner:'A',changed:true}},
+   message:"Policy improvement again: S2 switches from B to A, now that S1 is known to be worth 10." },
+ { phase:'eval', policy:{S1:'B',S2:'A'}, V:{S1:10,S2:6}, evalCount:6, improveCount:2,
+   detail:{S1:{action:'B', r:10, vnext:0, next:'S3', total:10}, S2:{action:'A', r:1, vnext:10, next:'S1', total:6}},
+   message:"Round 3: evaluate the new policy. S2 jumps to 6 immediately." },
+ { phase:'eval', policy:{S1:'B',S2:'A'}, V:{S1:10,S2:6}, evalCount:7, improveCount:2,
+   detail:{S1:{action:'B', r:10, vnext:0, next:'S3', total:10}, S2:{action:'A', r:1, vnext:10, next:'S1', total:6}},
+   message:"No change — converged. V_π(S1)=10, V_π(S2)=6." },
+ { phase:'improve', policy:{S1:'B',S2:'A'}, V:{S1:10,S2:6}, evalCount:7, improveCount:3,
+   detail:{S1:{A:5,B:10,winner:'B',changed:false}, S2:{A:6,B:4,winner:'A',changed:false}},
+   message:"Policy improvement: nothing changes this time. Policy iteration has converged! π*(S1)=B, π*(S2)=A — same answer as value iteration." }
+];
+let pi = 0;
+function piEvalCard(state, d) {
+  return '<div class="calc-card"><div style="font-weight:600;margin-bottom:4px;">'+state+' (fixed action '+d.action+')</div><div class="calc-row winner"><span>'+d.action+' &rarr; '+d.next+'</span><span>'+d.r+' + 0.5&times;'+d.vnext+' = <b>'+d.total+'</b></span></div></div>';
+}
+function piImproveCard(state, d) {
+  const rows = ['A','B'].map(a => {
+    const isWin = d.winner===a;
+    return '<div class="calc-row'+(isWin?' winner':'')+'"><span>Action '+a+'</span><span><b>'+d[a]+'</b></span></div>';
+  }).join('');
+  const tag = d.changed ? ' <span style="color:#b8442a;font-weight:600;">(changed!)</span>' : ' <span style="color:#888;">(unchanged)</span>';
+  return '<div class="calc-card"><div style="font-weight:600;margin-bottom:4px;">'+state+tag+'</div>'+rows+'</div>';
+}
+function piRender() {
+  const s = piSteps[pi];
+  document.getElementById('pi-v-S1').textContent = s.V.S1;
+  document.getElementById('pi-v-S2').textContent = s.V.S2;
+  document.getElementById('pi-msg').textContent = s.message;
+  document.getElementById('pi-policy').textContent = 'π(S1)='+s.policy.S1+', π(S2)='+s.policy.S2;
+  document.getElementById('pi-eval-count').textContent = s.evalCount;
+  document.getElementById('pi-improve-count').textContent = s.improveCount;
+  const panel = document.getElementById('pi-panel');
+  if (s.phase === 'eval') panel.innerHTML = piEvalCard('S1', s.detail.S1) + piEvalCard('S2', s.detail.S2);
+  else if (s.phase === 'improve') panel.innerHTML = piImproveCard('S1', s.detail.S1) + piImproveCard('S2', s.detail.S2);
+  else panel.innerHTML = '';
+  const prev = pi > 0 ? piSteps[pi-1].V : null;
+  const b1 = document.getElementById('pi-v-S1').parentElement, b2 = document.getElementById('pi-v-S2').parentElement;
+  b1.classList.remove('updated'); b2.classList.remove('updated');
+  if (prev) {
+    void b1.offsetWidth;
+    if (prev.S1 !== s.V.S1) b1.classList.add('updated');
+    if (prev.S2 !== s.V.S2) b2.classList.add('updated');
+  }
+  document.getElementById('pi-prev').disabled = pi === 0;
+  document.getElementById('pi-next').disabled = pi === piSteps.length - 1;
+  document.getElementById('pi-dots').innerHTML = piSteps.map((_, idx) => '<span style="width:6px;height:6px;border-radius:50%;display:inline-block;background:'+(idx===pi?'#1a1a1a':'#ccc')+'"></span>').join('');
+}
+document.getElementById('pi-next').onclick = () => { if (pi < piSteps.length-1) { pi++; piRender(); } };
+document.getElementById('pi-prev').onclick = () => { if (pi > 0) { pi--; piRender(); } };
+piRender();
+
+/* ---------- COMPARISON CHART ---------- */
+new Chart(document.getElementById('compareChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Value Iteration', 'Q-Iteration', 'Policy Iteration'],
+    datasets: [
+      { label: 'Utility / Q-table updates', data: [3, 4, 7], backgroundColor: '#2a78d6' },
+      { label: 'Policy updates', data: [3, 4, 3], backgroundColor: '#eb6834' }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'top' } },
+    scales: { y: { title: { display: true, text: 'count' }, beginAtZero: true, ticks: { stepSize: 1 } } }
+  }
+});
+</script>
+</body>
+</html>
