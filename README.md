@@ -7,6 +7,11 @@ Learn Value Iteration, Q-Iteration, and Policy Iteration by watching them happen
 
 **[→ Live demo](#live-demo)** &nbsp;|&nbsp; **[→ Topics covered](#-topics-covered)** &nbsp;|&nbsp; **[→ Roadmap](#-roadmap--planned-additions)**
 
+
+<p align="center">
+  <img src="figs/rl_information_flow.svg" alt="Reinforcement learning agent-environment information flow with value function updates" width="700">
+</p>
+
 ---
 
 ## Table of contents
