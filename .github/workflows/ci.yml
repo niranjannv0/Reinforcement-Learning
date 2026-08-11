@@ -20,10 +20,19 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Syntax check
-        run: python -m py_compile python/q_learning_gridworld.py
+        run: |
+          python -m py_compile python/q_learning_gridworld.py
+          python -m py_compile python/sarsa_gridworld.py
+          python -m py_compile python/cross_entropy_method.py
 
       # No display on the CI runner, so this trains a small number of
       # episodes with matplotlib's Agg backend and saves a PNG instead
       # of opening a GUI window.
-      - name: Smoke test (headless)
+      - name: Smoke test (Q-Learning)
         run: python python/q_learning_gridworld.py --headless --episodes 50
+
+      - name: Smoke test (SARSA)
+        run: python python/sarsa_gridworld.py --headless --episodes 50
+
+      - name: Smoke test (Cross-Entropy Method)
+        run: python python/cross_entropy_method.py --headless --episodes 50

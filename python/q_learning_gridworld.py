@@ -35,6 +35,7 @@ The core update, applied after every single step the agent takes:
                                      \_______ TD target _______/
                                      \_____________ TD error _____________/
 
+    TD = Temporal Difference: the difference between what we expected and what we actually got.
     alpha  = learning rate      (how much we trust each new sample)
     gamma  = discount factor    (how much future reward matters)
     r      = reward just received
