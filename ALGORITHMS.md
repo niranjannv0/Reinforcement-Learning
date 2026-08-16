@@ -340,7 +340,9 @@ CEM maintains a Gaussian search distribution $\mathcal{N}(\mu, \sigma^2)$ over $
 3. **Select the elites** — the top $\lceil N\rho \rceil$ candidates by return, where $\rho$ is the elite fraction (e.g. $0.2$ → top 20%)
 4. **Refit** the search distribution to just the elites:
 
-   $$\mu \leftarrow \operatorname{mean}(\text{elite } \theta\text{'s}) \qquad \sigma \leftarrow \operatorname{std}(\text{elite } \theta\text{'s}) + \text{noise\_floor(generation)}$$
+   $$\mu \leftarrow \operatorname{mean}(\text{elite } \theta\text{'s}) \qquad \sigma \leftarrow \operatorname{std}(\text{elite } \theta\text{'s}) + \text{noise floor}$$
+
+   (the decaying "noise floor" term is `noise_floor(generation)` in the code — see [why it's there](#why-the-extra-noise-floor-term) below)
 
 5. Repeat until the population converges (returns stop improving).
 

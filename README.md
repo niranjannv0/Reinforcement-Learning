@@ -213,7 +213,7 @@ This opens an interactive window with three buttons:
 
 - **Next Gen** — runs exactly one CEM generation (sample a population, evaluate, select elites, refit the search distribution) and redraws the current greedy policy and convergence curve.
 - **Train 20 Gens** — runs 20 generations back to back, useful for watching the policy converge without clicking repeatedly.
-- **Reset** — reinitializes the search distribution ($\mu = 0$, $\sigma = \text{init\_std}$) and clears the convergence history.
+- **Reset** — reinitializes the search distribution ($\mu = 0$, $\sigma$ reset to `init_std`) and clears the convergence history.
 
 No display available? Run headless — it trains silently for a fixed number of generations and saves a PNG (policy grid + convergence curve) instead of opening a window:
 
