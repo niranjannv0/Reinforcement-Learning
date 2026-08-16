@@ -124,6 +124,7 @@ def rollout(theta, rng, max_steps=MAX_STEPS):
 
 def evaluate(theta_flat, episodes_per_candidate, rng):
     theta = theta_flat.reshape(N_STATES, N_ACTIONS)
+    print(theta.shape)
     returns = [rollout(theta, rng) for _ in range(episodes_per_candidate)]
     return float(np.mean(returns))
 
@@ -154,6 +155,7 @@ class CEMTrainer:
         samples = self.mean + self.std * self.rng.standard_normal(
             (self.population, self.n_params)
         )
+        print(samples.shape, self.episodes_per_candidate, self.rng)
         fitness = np.array([
             evaluate(theta, self.episodes_per_candidate, self.rng)
             for theta in samples

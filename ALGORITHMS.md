@@ -4,15 +4,187 @@ Detailed formulae, pseudocode, and hyperparameters for every algorithm implement
 
 ## Table of contents
 
-- [1. Tabular Q-Learning](#1-tabular-q-learning)
-- [2. SARSA](#2-sarsa)
-- [3. Cross-Entropy Method (CEM)](#3-cross-entropy-method-cem)
-- [4. All three, side by side](#4-all-three-side-by-side)
+- [1. Value Iteration](#1-value-iteration)
+- [2. Policy Iteration](#2-policy-iteration)
+- [3. Tabular Q-Learning](#3-tabular-q-learning)
+- [4. SARSA](#4-sarsa)
+- [5. Cross-Entropy Method (CEM)](#5-cross-entropy-method-cem)
+- [6. All five, side by side](#6-all-five-side-by-side)
 - [References](#references)
 
 ---
 
-## 1. Tabular Q-Learning
+## 1. Value Iteration
+
+**Implemented in:** [`python/value_iteration_gridworld.py`](./python/value_iteration_gridworld.py)
+
+### What it is
+
+Every other algorithm in this repo is **model-free**: it never sees the environment's transition probabilities or reward function, only the `(state, action) -> (reward, next state)` samples it happens to experience by actually acting. Value Iteration is the opposite. It's a **model-based planning** algorithm — it's handed the full transition model up front (every possible outcome of every action, with its exact probability, computed directly from the known dynamics rather than sampled) and never takes a single real step in the environment. Instead, it repeatedly sweeps over *every* state at once, applying the **Bellman optimality equation**, until the value estimates stop changing.
+
+**In plain English:** where Q-learning has to actually walk into the pit a few times before it learns that state is bad, Value Iteration can just look up the transition model and compute the consequence directly — no trial and error required. It's doing arithmetic on a known map of the world, not exploring an unknown one.
+
+### The Bellman optimality equation
+
+The value that Value Iteration converges toward, `V*(s)`, satisfies:
+
+```
+V*(s)  =  max_a  sum_s'  P(s'|s,a) * [ R(s,a,s') + gamma * V*(s') ]
+```
+
+Value Iteration turns this into an update rule by applying the right-hand side, using the *current* estimate `V_k` in place of the unknown `V*`, and repeating:
+
+```
+V_{k+1}(s)  <-  max_a  sum_s'  P(s'|s,a) * [ R(s,a,s') + gamma * V_k(s') ]
+```
+
+| Symbol | Meaning |
+|---|---|
+| `s` | the state being updated |
+| `a` | an action being considered |
+| `P(s'\|s,a)` | probability of landing in `s'`, given the model — known exactly, not estimated |
+| `R(s,a,s')` | reward for that specific transition |
+| `gamma` | discount factor |
+| `max_a (...)` | try every action, keep the best expected value |
+
+Notice there's no learning rate `alpha` anywhere in this update, unlike every other algorithm in this repo. That's not an oversight — `alpha` exists in Q-learning and SARSA specifically to smooth out *noisy, sampled* estimates over time. Value Iteration never samples anything; `sum_s' P(s'|s,a) * [...]` is an *exact* expectation computed from the known model, so there's nothing noisy to smooth.
+
+Compare this directly to Q-learning's update from [Section 3](#3-tabular-q-learning):
+
+```
+Q-learning:       Q(s,a) <- Q(s,a) + alpha * [ r + gamma * max_a' Q(s',a') - Q(s,a) ]
+                             (uses ONE sampled transition, nudges the estimate a little)
+
+Value Iteration:  V(s)   <- max_a  sum_s' P(s'|s,a) * [ R(s,a,s') + gamma * V(s') ]
+                             (uses EVERY possible transition, weighted exactly, replaces the estimate outright)
+```
+
+Q-learning's `max_a' Q(s',a')` and Value Iteration's `max_a sum_s' P(...)[...]` are answering the same underlying question — "what's the best I could do from here?" — but Q-learning has to *estimate* that from limited experience, one sample at a time, while Value Iteration can *compute* it exactly, because it already has the model.
+
+### Pseudocode
+
+```
+initialize V(s) = 0 for all states s
+repeat:
+    delta = 0
+    for each state s:
+        v_old = V(s)
+        V(s) = max_a  sum_s'  P(s'|s,a) * [ R(s,a,s') + gamma * V(s') ]
+        delta = max(delta, |v_old - V(s)|)
+until delta < theta          # theta is a small convergence threshold, e.g. 1e-4
+
+# extract the policy once V has converged:
+policy(s) = argmax_a  sum_s'  P(s'|s,a) * [ R(s,a,s') + gamma * V(s') ]
+```
+
+This repo's script performs a **synchronous** sweep — every state's new value is computed from the *same* snapshot of `V`, and all of them are replaced together at the end of the sweep (rather than updating states one at a time and immediately using the newer values for later states in the same pass). This matches the classical textbook presentation and makes the "wave of value information spreading outward from the goal" visually obvious, one full sweep at a time.
+
+### This repo's exact setup
+
+Same environment as every other script here — the classic 4×3 "Example of Learned Q-Function" gridworld (Berkeley CS188 / Russell & Norvig, *AIMA*):
+
+- **Grid:** 3 rows × 4 columns, one interior wall
+- **Goal:** `+1` terminal reward, **Pit:** `-1` terminal reward
+- **Living reward:** `-0.04` per non-terminal step
+- **Transition model:** 0.8 probability of moving in the intended direction, 0.1/0.1 split across the two perpendicular directions (bumping a wall/boundary leaves the agent in place) — this exact model is what `transitions(state, action)` in the script enumerates directly, rather than sampling from it
+- **`gamma = 0.9`**, convergence threshold **`theta = 1e-4`**
+
+Running it to convergence takes **16 sweeps** and produces the exact optimal value function and policy for this gridworld — matching, state for state, what Q-learning, SARSA, and CEM all converge toward independently through trial and error elsewhere in this repo.
+
+### Convergence
+
+The Bellman optimality backup is a **contraction mapping** in the max-norm, with contraction factor `gamma`. That guarantees the sequence `V_0, V_1, V_2, ...` converges to the unique fixed point `V*` as `k -> infinity`, regardless of how `V_0` is initialized (this repo starts at all zeros) — and it converges *geometrically*, at rate `gamma` per sweep. Once `V` has converged, the one-step-lookahead greedy policy `pi(s) = argmax_a sum_s' P(s'|s,a)[R(s,a,s') + gamma V(s')]` is guaranteed optimal. In practice, the greedy policy implied by `V` often stabilizes into its final, optimal shape well before the numeric values themselves finish converging — worth watching for directly in the interactive GUI's arrows.
+
+---
+
+## 2. Policy Iteration
+
+**Implemented in:** [`python/policy_iteration_gridworld.py`](./python/policy_iteration_gridworld.py)
+
+### What it is
+
+Like Value Iteration, this is a **model-based planning** algorithm — same known transition model, same lack of any real interaction with the environment. But where Value Iteration folds "evaluate every action" and "take the best one" into a single combined update on every sweep, Policy Iteration keeps an **explicit policy** the whole time and alternates between two distinctly different phases:
+
+1. **Policy Evaluation** — hold the policy fixed, and sweep `V(s)` until it exactly matches the value of *that specific policy* (no `max` involved at all — just plug in whatever action the policy already prescribes).
+2. **Policy Improvement** — hold `V(s)` fixed, and for every state switch to whichever action looks best under a one-step lookahead. This is the one place a `max` appears in the whole algorithm.
+
+Repeat those two phases until the policy stops changing between improvement steps.
+
+**In plain English:** Policy Iteration asks "given what I'm currently doing, how good is that, exactly?" (evaluation), then "now that I know exactly how good my current plan is, can I do better anywhere?" (improvement) — and alternates those two questions until the answer to the second one is "no, nowhere."
+
+### The two update rules
+
+**Policy Evaluation** (repeated for a *fixed* policy `pi`, until it converges):
+
+```
+V(s)  <-  sum_s'  P(s'|s, pi(s)) * [ R(s, pi(s), s') + gamma * V(s') ]
+```
+
+Notice: no `max_a` here — `pi(s)` already tells you exactly which action to plug in. This equation is solving the **Bellman expectation equation** for `V^pi`, not the Bellman *optimality* equation Value Iteration solves.
+
+**Policy Improvement** (one pass, using the now-converged `V^pi`):
+
+```
+pi'(s)  <-  argmax_a  sum_s'  P(s'|s,a) * [ R(s,a,s') + gamma * V^pi(s') ]
+```
+
+This is exactly Value Iteration's update rule, minus taking the max value itself — Policy Improvement takes the `argmax` *action* instead, and hands it to the policy.
+
+The **Policy Improvement Theorem** guarantees this step never makes things worse: if `pi'` is greedy with respect to `V^pi`, then `V^pi'(s) >= V^pi(s)` for every state, with equality only when `pi` was already optimal. That's what makes "alternate evaluate and improve" a valid strategy at all — every improvement step either strictly helps or confirms you're already done.
+
+### Pseudocode
+
+```
+initialize V(s) = 0 for all s
+initialize policy(s) arbitrarily for all s     # this repo starts every state at "UP"
+
+repeat:
+    # --- Policy Evaluation ---
+    repeat:
+        delta = 0
+        for each state s:
+            v_old = V(s)
+            V(s) = sum_s'  P(s'|s, policy(s)) * [ R(s, policy(s), s') + gamma * V(s') ]
+            delta = max(delta, |v_old - V(s)|)
+    until delta < theta
+
+    # --- Policy Improvement ---
+    policy_stable = True
+    for each state s:
+        old_action = policy(s)
+        policy(s) = argmax_a  sum_s'  P(s'|s,a) * [ R(s,a,s') + gamma * V(s') ]
+        if policy(s) != old_action:
+            policy_stable = False
+
+until policy_stable
+```
+
+### This repo's exact setup
+
+Same environment, `gamma = 0.9`, evaluation convergence threshold `theta = 1e-4`. The script deliberately starts from a **bad, arbitrary policy** — every state initialized to `UP` — rather than something close to optimal, so the interactive GUI shows a genuine before/after rather than a policy that barely has to move.
+
+Running it to convergence took **3 policy-improvement iterations** (compared to Value Iteration's 16 raw sweeps) — but each of those 3 iterations includes a full Policy Evaluation phase running to convergence internally, for a total of **65 evaluation sweeps** across the whole run. Both scripts converge to *exactly* the same `V` and the same policy, which is expected: they're two different roads to the same unique optimum.
+
+### Convergence
+
+Because a finite MDP has only finitely many distinct deterministic policies, and each Policy Improvement step either strictly improves the policy (by the Policy Improvement Theorem above) or leaves it unchanged — which is exactly the stopping condition — Policy Iteration is guaranteed to reach the optimal policy in a **finite** number of improvement steps. That's a qualitatively different guarantee from Value Iteration's *asymptotic* convergence (`V_k` approaches `V*` in the limit, but technically never exactly reaches it in finite time under the contraction-mapping argument above).
+
+### Value Iteration vs. Policy Iteration, at a glance
+
+| | Value Iteration | Policy Iteration |
+|---|---|---|
+| **Maintains** | Just `V(s)` — no explicit policy tracked until you read one off the end | Both `V(s)` *and* an explicit policy, updated in alternation |
+| **Uses a `max` every sweep?** | Yes — every single update | No — only during Policy Improvement; Policy Evaluation just plugs in the current policy's action |
+| **Convergence** | Asymptotic — `V` approaches `V*` in the limit, at a rate governed by `gamma` | Finite — provably reaches the optimal policy in a bounded number of policy changes |
+| **Cost per outer step** | One cheap sweep | A full inner Policy Evaluation loop run to convergence, *then* one Policy Improvement sweep — more expensive per outer iteration |
+| **In this repo** | 16 sweeps to converge | 3 policy-improvement iterations, 65 total evaluation sweeps |
+| **Where in this repo** | `python/value_iteration_gridworld.py` | `python/policy_iteration_gridworld.py` |
+
+---
+
+Everything from here on is **model-free**: unlike Value Iteration and Policy Iteration above, none of the following three algorithms are ever given the transition model or reward function. They only know what they experience by actually acting in the environment.
+
+## 3. Tabular Q-Learning
 
 **Implemented in:** [`python/q_learning_gridworld.py`](./python/q_learning_gridworld.py)
 
@@ -77,7 +249,7 @@ Given every `(s,a)` pair is visited infinitely often (in the limit) and the lear
 
 ---
 
-## 2. SARSA
+## 4. SARSA
 
 **Implemented in:** [`python/sarsa_gridworld.py`](./python/sarsa_gridworld.py)
 
@@ -142,7 +314,7 @@ SARSA converges to the optimal policy **under the same epsilon-greedy behavior p
 
 ---
 
-## 3. Cross-Entropy Method (CEM)
+## 5. Cross-Entropy Method (CEM)
 
 **Implemented in:** [`python/cross_entropy_method.py`](./python/cross_entropy_method.py)
 
@@ -219,7 +391,22 @@ return greedy policy from final mu
 
 ---
 
-## 4. All three, side by side
+## 6. All five, side by side
+
+### The big picture: planning vs. learning
+
+| | Value Iteration | Policy Iteration | Q-Learning | SARSA | Cross-Entropy Method |
+|---|---|---|---|---|---|
+| **Category** | Model-based planning | Model-based planning | Model-free learning | Model-free learning | Model-free learning |
+| **Needs the transition model `P(s'\|s,a)`?** | Yes | Yes | No | No | No |
+| **Ever takes a real step in the environment?** | No | No | Yes | Yes | Yes |
+| **Has a learning rate `alpha`?** | No — exact expectation, nothing to smooth | No — same reason | Yes | Yes | No (uses a search distribution instead) |
+| **What it ultimately produces** | `V*(s)` (policy read off at the end) | An explicit policy, improved in alternation | `Q*(s,a)` | `Q(s,a)` for the policy actually followed | Policy parameters `theta`, directly |
+| **Where in this repo** | `python/value_iteration_gridworld.py` | `python/policy_iteration_gridworld.py` | `python/q_learning_gridworld.py` | `python/sarsa_gridworld.py` | `python/cross_entropy_method.py` |
+
+Value Iteration and Policy Iteration both converge to *exactly* the same optimum in this repo's gridworld — and so, given enough training, do Q-learning, SARSA, and CEM, purely from experience, with no access to the model the first two are handed for free. Watching all five scripts arrive at the same answer by such different routes is the point of having all of them side by side.
+
+### Comparing the three learning methods in detail
 
 | | Tabular Q-Learning | SARSA | Cross-Entropy Method |
 |---|---|---|---|
@@ -236,7 +423,7 @@ return greedy policy from final mu
 | **Natural next step in this repo's roadmap** | → DQN (swap the table for a neural network) | → forms the "on-policy" half of the DQN/Actor-Critic family later in the roadmap | → Policy Gradient methods (REINFORCE), which replace CEM's population search with an actual gradient estimate of `E[R]` w.r.t. `theta` |
 | **Where in this repo** | `python/q_learning_gridworld.py` | `python/sarsa_gridworld.py` | `python/cross_entropy_method.py` |
 
-All three are **model-free** — none of them is ever given the transition probabilities or reward function; they only interact with the environment through `(state, action) -> (reward, next state)`. That's what distinguishes all three from Value/Q/Policy *Iteration* (covered in `docs/index.html`), which require a fully known MDP model up front.
+All three are **model-free** — none of them is ever given the transition probabilities or reward function; they only interact with the environment through `(state, action) -> (reward, next state)`. That's what distinguishes all three from Value Iteration and Policy Iteration above, which require a fully known MDP model up front.
 
 Q-learning and SARSA are also both **tabular TD-control** methods — same update shape, same one-transition-at-a-time learning — which makes them the cleanest possible pair for seeing on-policy vs. off-policy side by side. CEM sits in a different family entirely: **episodic, gradient-free policy search**, evaluating whole policies rather than individual actions.
 
@@ -244,9 +431,11 @@ Q-learning and SARSA are also both **tabular TD-control** methods — same updat
 
 ## References
 
+- Bellman, R. (1957). *Dynamic Programming.* Princeton University Press — the original formulation of the optimality equation that both Value Iteration and Policy Iteration are built on.
+- Howard, R.A. (1960). *Dynamic Programming and Markov Processes.* MIT Press — introduced Policy Iteration.
 - Rummery, G.A. & Niranjan, M. (1994). *On-Line Q-Learning Using Connectionist Systems.* Technical Report CUED/F-INFENG/TR 166, Cambridge University — the original SARSA algorithm (named later by Sutton & Barto).
 - Rubinstein, R.Y. (1999). *The Cross-Entropy Method for Combinatorial and Continuous Optimization.*
 - Szita, I. & Lörincz, A. (2006). *Learning Tetris Using the Noisy Cross-Entropy Method.* Neural Computation. — source of the decaying "noise floor" trick used here.
-- Sutton, R.S. & Barto, A.G. (2018). *Reinforcement Learning: An Introduction* (2nd ed.) — Chapter 6 covers both Q-learning and SARSA, including the Cliff Walking on-policy-vs-off-policy example referenced above; the broader policy-search family (of which CEM is a gradient-free member) is discussed in Chapter 13.
+- Sutton, R.S. & Barto, A.G. (2018). *Reinforcement Learning: An Introduction* (2nd ed.) — Chapter 4 covers Value Iteration and Policy Iteration (Dynamic Programming); Chapter 6 covers both Q-learning and SARSA, including the Cliff Walking on-policy-vs-off-policy example referenced above; the broader policy-search family (of which CEM is a gradient-free member) is discussed in Chapter 13.
 - Russell, S. & Norvig, P. *Artificial Intelligence: A Modern Approach* — source of the 4×3 gridworld environment used throughout this repo.
 - Dan Klein & Pieter Abbeel, Berkeley CS188 course slides — popularized the "Example of Learned Q-Function" version of the gridworld used here.
